@@ -1,0 +1,18 @@
+[package]
+author = "Max Willsey <me@mwillsey.com>"
+edition = "2024"
+name = "promatch"
+version = "0.1.0"
+
+[dependencies]
+promatch-macros = {path = "promatch-macros", optional = true}
+
+[features]
+default = ["macros"]
+macros = ["promatch-macros"]
+
+[workspace]
+members = [
+  ".", # Refers to the main library crate in the root
+  "promatch-macros", # Refers to the proc macro crate in the macros/ directory
+]
