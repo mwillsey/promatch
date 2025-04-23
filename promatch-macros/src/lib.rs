@@ -5,7 +5,17 @@ use std::collections::HashMap;
 use derive_syn_parse::Parse;
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::{Arm, Expr, ExprMatch, Ident, Lit, Pat, parse_macro_input, spanned::Spanned};
+use syn::{
+    Expr, Ident, Lit, Pat, PatType, Result, Token, Type,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+    spanned::Spanned,
+    token::Brace,
+};
+
+macro_rules! err {
+    ($span:expr, $($rest:tt)*) => { Err(syn::Error::new($span, format!($($rest)*))) };
+}
 
 fn ident_to_pat(ident: Ident) -> Pat {
     Pat::Ident(syn::PatIdent {
@@ -19,8 +29,51 @@ fn ident_to_pat(ident: Ident) -> Pat {
 
 #[derive(Parse)]
 struct MyMatch {
-    ctx: Ident,
-    match_e: ExprMatch,
+    ctx: Expr,
+    _match_token: Token![match],
+    #[call(Expr::parse_without_eager_brace)]
+    expr: Expr,
+    #[brace]
+    _brace_token: Brace,
+    #[inside(_brace_token)]
+    #[call(parse_arms)]
+    arms: Vec<MyArm>,
+}
+
+#[derive(Parse)]
+struct MyArm {
+    #[call(parse_pat)]
+    pat: Pat,
+    _arrow: Token![=>],
+    body: Expr,
+    _comma: Option<Token![,]>,
+}
+
+fn parse_arms(input: ParseStream) -> Result<Vec<MyArm>> {
+    let mut arms = Vec::new();
+    while !input.is_empty() {
+        arms.push(input.call(Parse::parse)?);
+    }
+    Ok(arms)
+}
+
+fn parse_pat(input: ParseStream) -> Result<Pat> {
+    let mut pat = Pat::parse_single(input)?;
+    if input.peek(Token![:]) {
+        let colon_token: Token![:] = input.parse()?;
+        let ty: Type = input.parse()?;
+        pat = Pat::Type(PatType {
+            attrs: Vec::new(),
+            pat: Box::new(pat),
+            colon_token,
+            ty: Box::new(ty),
+        });
+    }
+    if input.peek(Token![=>]) {
+        Ok(pat)
+    } else {
+        err!(pat.span(), "Expected => after pattern")
+    }
 }
 
 #[derive(Default)]
@@ -37,7 +90,7 @@ enum Instruction {
 }
 
 impl ArmCompiler {
-    fn tokens(ctx: &Ident, argument: &Expr, arm: &Arm) -> TokenStream {
+    fn tokens(ctx: &Ident, argument: &Expr, arm: &MyArm) -> TokenStream {
         let mut x = ArmCompiler::default();
 
         let top_ident = match x.go(&arm.pat) {
@@ -69,7 +122,7 @@ impl ArmCompiler {
         n
     }
 
-    fn go(&mut self, pattern: &Pat) -> Result<Ident, syn::Error> {
+    fn go(&mut self, pattern: &Pat) -> Result<Ident> {
         match pattern {
             Pat::Ident(i) => {
                 assert!(i.subpat.is_none(), "not supported yet");
@@ -113,17 +166,23 @@ impl ArmCompiler {
                     .push(Instruction::Bind(ident.clone(), Pat::Slice(p)));
                 Ok(ident)
             }
-            _ => Err(syn::Error::new(pattern.span(), "Unsupported pattern")),
+            _ => {
+                let dbg_message = format!("{:?}", pattern);
+                let just_the_type = dbg_message.split_whitespace().next().unwrap();
+                err!(pattern.span(), "Unsupported pattern: {:?}", just_the_type)
+            }
         }
     }
 }
 
 #[proc_macro]
-pub fn my_match(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn promatch(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as MyMatch);
 
-    let e = &input.match_e.expr;
-    let arm_to_token = |arm| ArmCompiler::tokens(&input.ctx, &e, arm);
-    let tokens = input.match_e.arms.iter().map(arm_to_token);
-    quote! { #(#tokens)* }.into()
+    let e = &input.expr;
+    let ctx = &input.ctx;
+    let ctx_ident = Ident::new("ctx", ctx.span());
+    let arm_to_token = |arm| ArmCompiler::tokens(&ctx_ident, &e, arm);
+    let tokens = input.arms.iter().map(arm_to_token);
+    quote! { let #ctx_ident = #ctx; #(#tokens)* }.into()
 }

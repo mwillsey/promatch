@@ -20,15 +20,29 @@ impl Search<u32, Double> for Ctx {
     }
 }
 
+// impl<T: Clone, const N: usize> Search<Vec<T>, [T; N]> for Ctx {
+//     fn unapply(&self, a: Vec<T>, mut f: impl FnMut(&Self, [T; N])) {
+//         if let Ok(a) = <[T; N]>::try_from(a.clone()) {
+//             f(self, a);
+//         }
+//     }
+// }
+
 #[test]
 fn test() {
     let ctx = Ctx;
     let mut results = vec![];
-    my_match!(ctx match 6 {
+    promatch!(ctx match 6 {
         Sum(a, Double(a)) => {
             results.push(a);
         }
     });
+
+    // my_match!(ctx match vec![1,2,3] {
+    //     [a,b,c]: [_; 3] => {
+    //         results.push(a);
+    //     }
+    // });
 
     assert_eq!(results, [2]);
 }
