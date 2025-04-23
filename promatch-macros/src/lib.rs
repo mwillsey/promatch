@@ -102,10 +102,18 @@ impl ArmCompiler {
                     .push(Instruction::Bind(ident.clone(), Pat::TupleStruct(p)));
                 Ok(ident)
             }
-            _ => Err(syn::Error::new(
-                pattern.span(),
-                "Expected an identifier pattern",
-            )),
+            Pat::Slice(p) => {
+                let mut p = p.clone();
+                for elem in &mut p.elems {
+                    *elem = ident_to_pat(self.go(elem)?);
+                }
+                let s = format!("v{}_slice", self.fresh());
+                let ident = Ident::new(&s, p.span());
+                self.instructions
+                    .push(Instruction::Bind(ident.clone(), Pat::Slice(p)));
+                Ok(ident)
+            }
+            _ => Err(syn::Error::new(pattern.span(), "Unsupported pattern")),
         }
     }
 }

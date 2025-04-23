@@ -13,6 +13,6 @@ macros = ["promatch-macros"]
 
 [workspace]
 members = [
-  ".", # Refers to the main library crate in the root
-  "promatch-macros", # Refers to the proc macro crate in the macros/ directory
+  ".",
+  "promatch-macros",
 ]
