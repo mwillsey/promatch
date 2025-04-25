@@ -103,14 +103,15 @@ impl ArmCompiler {
         for inst in &x.instructions {
             output = match inst {
                 Instruction::Bind(ident, pat) => quote! {
-                    #ctx.unapply(#ident, |#[allow(unused_variables)] #ctx, #pat| { #output })
+                    #ctx.unapply(#ident, |#pat| { #output })
                 },
-                Instruction::CheckEq(ident, ident2) => quote! { if #ident == #ident2 { #output } },
-                Instruction::CheckLit(ident, lit) => quote! { if #ident == #lit { #output } },
+                Instruction::CheckEq(ident, ident2) => {
+                    quote! { #ctx.then(#ident == #ident2, || { #output }) }
+                }
+                Instruction::CheckLit(ident, lit) => {
+                    quote! { #ctx.then(#ident == #lit, || { #output }) }
+                }
             }
-            // output = quote! {
-            //     #ctx.unapply(#ident, |#[allow(unused_variables)] #ctx, #pat| { #output })
-            // };
         }
 
         quote! { let #top_ident = #argument; #output }.into()
@@ -184,5 +185,5 @@ pub fn promatch(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let ctx_ident = Ident::new("ctx", ctx.span());
     let arm_to_token = |arm| ArmCompiler::tokens(&ctx_ident, &e, arm);
     let tokens = input.arms.iter().map(arm_to_token);
-    quote! { let #ctx_ident = #ctx; #(#tokens)* }.into()
+    quote! { {let #ctx_ident = #ctx; #(#tokens)*} }.into()
 }
