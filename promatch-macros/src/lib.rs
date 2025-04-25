@@ -123,7 +123,7 @@ impl ArmCompiler {
         n
     }
 
-    fn go(&mut self, pattern: &Pat) -> Result<Ident> {
+    fn go(&mut self, pattern: &Pat) -> Result<Pat> {
         match pattern {
             Pat::Ident(i) => {
                 assert!(i.subpat.is_none(), "not supported yet");
@@ -132,41 +132,42 @@ impl ArmCompiler {
                     let ident2 = format_ident!("v{}_{}", self.fresh(), ident);
                     self.instructions
                         .push(Instruction::CheckEq(ident.clone(), ident2.clone()));
-                    return Ok(ident2);
+                    return Ok(ident_to_pat(ident2));
                 } else {
                     self.bound.insert(s.clone(), i.ident.clone());
-                    Ok(i.ident.clone())
+                    Ok(ident_to_pat(i.ident.clone()))
                 }
             }
             Pat::Lit(p) => {
                 let ident = format_ident!("lit{}", self.fresh());
                 self.instructions
                     .push(Instruction::CheckLit(ident.clone(), p.lit.clone()));
-                Ok(ident)
+                Ok(ident_to_pat(ident))
             }
             Pat::TupleStruct(p) => {
                 let mut p = p.clone();
                 for elem in &mut p.elems {
-                    *elem = ident_to_pat(self.go(elem)?);
+                    *elem = self.go(elem)?;
                 }
                 let s = p.path.segments.last().unwrap().ident.to_string();
                 let s = format!("v{}_{}", self.fresh(), heck::AsSnakeCase(s));
                 let ident = Ident::new(&s, p.span());
                 self.instructions
                     .push(Instruction::Bind(ident.clone(), Pat::TupleStruct(p)));
-                Ok(ident)
+                Ok(ident_to_pat(ident))
             }
             Pat::Slice(p) => {
                 let mut p = p.clone();
                 for elem in &mut p.elems {
-                    *elem = ident_to_pat(self.go(elem)?);
+                    *elem = self.go(elem)?;
                 }
                 let s = format!("v{}_slice", self.fresh());
                 let ident = Ident::new(&s, p.span());
                 self.instructions
                     .push(Instruction::Bind(ident.clone(), Pat::Slice(p)));
-                Ok(ident)
+                Ok(ident_to_pat(ident))
             }
+            Pat::Wild(_) => Ok(pattern.clone()),
             _ => {
                 let dbg_message = format!("{:?}", pattern);
                 let just_the_type = dbg_message.split_whitespace().next().unwrap();

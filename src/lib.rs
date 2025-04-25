@@ -1,3 +1,6 @@
+pub mod collections;
+pub use collections::*;
+
 #[cfg(feature = "macros")]
 pub use promatch_macros::*;
 
@@ -41,18 +44,3 @@ impl<Ctx, T> Combine<Vec<T>> for Ctx {
         result
     }
 }
-
-// pub trait HKT {
-//     type Source;
-//     type Output<NewType>: HKT<Source = NewType>;
-// }
-
-// trait CtxMonad<T: HKT> {
-//     fn bind<U, F>(&mut self, t: T, f: F) -> T::Output<U>
-//     where
-//         F: FnMut(&mut Self, T::Source) -> T::Output<U>,
-//         T::Source: Clone,
-//         U: Clone;
-
-//     fn plus(&mut self, t1: T, t2: T) -> T;
-// }

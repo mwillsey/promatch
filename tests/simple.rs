@@ -29,7 +29,9 @@ impl Search<u32, Double> for Ctx {
 fn test() {
     let ctx = Ctx;
     let results = promatch!(ctx match 6 {
-        Sum(a, Double(a)) => vec![a],
+        Sum(a, Double(a)) => {
+            vec![a]
+        }
     });
 
     assert_eq!(results, [2]);
